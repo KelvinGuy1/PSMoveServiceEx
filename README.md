@@ -1,3 +1,12 @@
+# Experimental Linux Support Fork
+In order to build this, you will need OpenCV 4 or older.
+
+Build commands
+```bash
+cmake -S . -B build -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBoost_NO_BOOST_CMAKE=ON -DBoost_USE_STATIC_LIBS=OFF -DBoost_USE_STATIC_RUNTIME=OFF
+cmake --build build -j2
+```
+
 # ℹ️ PSMoveServiceEx
 This fork has been created to expand the PSMoveSerivce lifespan with fixes, optimizations and new features.
 Please use the original PSMoveService Wiki for now until i added my own.
