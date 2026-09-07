@@ -1136,7 +1136,7 @@ CommonDevicePose PS3EyeTracker::getTrackerPose() const
 
 void PS3EyeTracker::setTrackerPose(const struct CommonDevicePose *pose)
 {
-    SERVER_LOG_INFO("PS3EyeTracker::setTrackerPose")
+    //SERVER_LOG_INFO("PS3EyeTracker::setTrackerPose");
     //<< "Setting pose: pos=("
     //<< pose->PositionCm.x << "," << pose->PositionCm.y << "," << pose->PositionCm.z
     //<< ") orient=(" << pose->Orientation.w << "," << pose->Orientation.x << ","
