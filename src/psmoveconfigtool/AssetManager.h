@@ -13,6 +13,7 @@
 #include "stb_truetype.h"
 
 #include <imgui.h>
+#include <cstdint>
 
 class TextureAsset
 {

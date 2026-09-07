@@ -48,6 +48,7 @@ public:
         : m_api_index(-1)
 		, m_asign_index(asignIndex)
 		, m_iVideoCaptureType(eVideoCaptureType::CaptureType_ALL)
+		, m_usingCustomCapture(false)
 	{
 		m_iVideoCaptureType = videoCaptureType;
 		m_valid = open(apiIndex);
@@ -57,7 +58,11 @@ public:
     /*
     If a PS3 Eye device is not found, fall back to base class cv::VideoCapture::open(index)
     */
-    bool open(int index) override;
+    bool open(int index);
+
+    /// True if a custom PS3Eye-family capture backend (PS3Eye/CLEye/CLMulti) is in use.
+    /// False if this fell back to the base class's generic cv::VideoCapture (e.g. a UVC webcam).
+    bool isUsingCustomCapture() const { return m_usingCustomCapture; }
 
     /// Use cv::VideoCapture::set() unless \ref eyeType == PSEYE_CLEYE_DRIVER
     bool set(int propId, double value) override;
@@ -79,6 +84,7 @@ protected:
 	int m_api_index; /**< Keep track of index. Necessary for PSEYE_CLEYE_DRIVER */
 	int m_asign_index; 
 	eVideoCaptureType m_iVideoCaptureType;
+	bool m_usingCustomCapture;
     std::string m_indentifier; /**< Filled in when the tracker is opened */
 
 private:

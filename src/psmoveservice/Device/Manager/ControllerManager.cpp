@@ -102,7 +102,7 @@ ControllerManager::startup()
 
 	if (success && gamepad_api_enabled)
 	{
-		Gamepad_init(gamepad_api_xinput_only);
+		Gamepad_init();
 	}
 
     if (success)

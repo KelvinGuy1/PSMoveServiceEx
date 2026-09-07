@@ -453,7 +453,7 @@ void AppStage_ColorCalibration::update()
 							),
 							cv::FONT_HERSHEY_PLAIN,
 							0.75,
-							CvScalar(0, 255, 255),
+							cv::Scalar(0, 255, 255),
 							1
 						);
 					}
@@ -3891,15 +3891,15 @@ void AppStage_ColorCalibration::get_contures_lower(int type, int min_points_in_c
 	{
 		cv::findContours(*m_video_buffer_state->gsLowerBuffer,
 			contours,
-			CV_RETR_EXTERNAL,
-			CV_CHAIN_APPROX_SIMPLE);  // CV_CHAIN_APPROX_NONE?
+			cv::RETR_EXTERNAL,
+			cv::CHAIN_APPROX_SIMPLE);  // CV_CHAIN_APPROX_NONE?
 	}
 	else
 	{
 		cv::findContours(*m_video_buffer_state->detectionLowerBuffer,
 			contours,
-			CV_RETR_EXTERNAL,
-			CV_CHAIN_APPROX_SIMPLE);  // CV_CHAIN_APPROX_NONE?
+			cv::RETR_EXTERNAL,
+			cv::CHAIN_APPROX_SIMPLE);  // CV_CHAIN_APPROX_NONE?
 	}
 
 	struct ContourInfo

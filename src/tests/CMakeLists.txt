@@ -12,9 +12,7 @@ list(APPEND TEST_CAMERA_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_CAMERA_REQ_LIBS ${Boost_LIBRARIES})
 
 # OpenCV
-IF(MSVC) # not necessary for OpenCV > 2.8 on other build systems
-    list(APPEND TEST_CAMERA_INCL_DIRS ${OpenCV_INCLUDE_DIRS}) 
-ENDIF()
+list(APPEND TEST_CAMERA_INCL_DIRS ${OpenCV_INCLUDE_DIRS})
 list(APPEND TEST_CAMERA_REQ_LIBS ${OpenCV_LIBS})
 
 # PS3EYE
@@ -39,7 +37,8 @@ ENDIF()
 list(APPEND TEST_CAMERA_INCL_DIRS 
     ${ROOT_DIR}/src/psmoveclient/
     ${ROOT_DIR}/src/psmoveprotocol/
-    ${ROOT_DIR}/src/psmoveservice/PSMoveTracker/PSEye)
+    ${ROOT_DIR}/src/psmoveservice/PSMoveTracker/PSEye
+    ${ROOT_DIR}/src/psmoveservice/Server)
 list(APPEND TEST_CAMERA_SRC
     ${ROOT_DIR}/src/psmoveclient/ClientConstants.h
     ${ROOT_DIR}/src/psmoveprotocol/SharedConstants.h
@@ -143,7 +142,7 @@ list(APPEND TEST_PSMOVE_SRC ${LIBSTEM_GAMEPAD_SRC})
 
 # Boost
 # TODO: Eliminate boost::filesystem with C++14
-FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
+FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options thread)
 list(APPEND TEST_PSMOVE_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_PSMOVE_REQ_LIBS ${Boost_LIBRARIES})
 
@@ -164,8 +163,22 @@ list(APPEND TEST_PSMOVE_INCL_DIRS
     ${ROOT_DIR}/src/psmoveservice/Platform
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
     ${ROOT_DIR}/src/psmoveservice/PSMoveController
-    ${ROOT_DIR}/src/psmoveservice/Utils)
+    ${ROOT_DIR}/src/psmoveservice/Utils
+    ${ROOT_DIR}/src/psmoveservice/Filter
+    ${ROOT_DIR}/src/psmoveservice/Device/View
+    ${ROOT_DIR}/src/psmoveservice/PSDualShock4
+    ${ROOT_DIR}/src/psmoveservice/VirtualController
+    ${ROOT_DIR}/src/psmoveservice/MorpheusHMD
+    ${ROOT_DIR}/src/psmoveservice/PSNaviController
+    ${ROOT_DIR}/src/psmoveservice/VirtualHMD
+    ${ROOT_DIR}/src/psmoveservice/PSMoveTracker
+    ${ROOT_DIR}/src/psmoveservice/PSMoveTracker/PSEye
+    ${ROOT_DIR}/thirdparty/lockfreequeue)
 list(APPEND TEST_PSMOVE_SRC
+    ${ROOT_DIR}/src/psmoveservice/Device/Manager/ControllerManager.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Manager/DeviceTypeManager.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Manager/HMDManager.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Manager/TrackerManager.cpp
     ${ROOT_DIR}/src/psmovemath/MathAlignment.h
     ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
     ${ROOT_DIR}/src/psmovemath/MathEigen.h
@@ -176,6 +189,9 @@ list(APPEND TEST_PSMOVE_SRC
     ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.cpp
     ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.h
     ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/View/ServerDeviceView.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/View/ServerHMDView.cpp
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerRequestHandler.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.h
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerGamepadEnumerator.h
@@ -186,8 +202,13 @@ list(APPEND TEST_PSMOVE_SRC
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerUSBDeviceEnumerator.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/VirtualControllerEnumerator.h
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/VirtualControllerEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/TrackerDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/HMDDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/VirtualTrackerEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/VirtualHMDDeviceEnumerator.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.h
     ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Manager/DeviceManager.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/USB/NullUSBApi.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/USB/LibUSBApi.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/USB/LibUSBBulkTransferBundle.cpp
@@ -204,7 +225,9 @@ list(APPEND TEST_PSMOVE_SRC
 list(APPEND TEST_PSMOVE_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
 list(APPEND TEST_PSMOVE_REQ_LIBS PSMoveProtocol)
 
-add_executable(test_psmove_controller ${CMAKE_CURRENT_LIST_DIR}/test_psmove_controller.cpp ${TEST_PSMOVE_SRC})
+list(APPEND TEST_PSMOVE_INCL_DIRS ${OpenCV_INCLUDE_DIRS})
+
+add_executable(test_psmove_controller EXCLUDE_FROM_ALL ${CMAKE_CURRENT_LIST_DIR}/test_psmove_controller.cpp ${TEST_PSMOVE_SRC})
 target_include_directories(test_psmove_controller PUBLIC ${TEST_PSMOVE_INCL_DIRS})
 target_link_libraries(test_psmove_controller ${PLATFORM_LIBS} ${TEST_PSMOVE_REQ_LIBS})
 SET_TARGET_PROPERTIES(test_psmove_controller PROPERTIES FOLDER Test)
@@ -258,7 +281,7 @@ list(APPEND TEST_NAVI_SRC ${LIBSTEM_GAMEPAD_SRC})
 
 # Boost
 # TODO: Eliminate boost::filesystem with C++14
-FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
+FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options thread)
 list(APPEND TEST_NAVI_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_NAVI_REQ_LIBS ${Boost_LIBRARIES})
 
@@ -319,7 +342,7 @@ list(APPEND TEST_NAVI_SRC
 list(APPEND TEST_NAVI_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
 list(APPEND TEST_NAVI_REQ_LIBS PSMoveProtocol)
 
-add_executable(test_navi_controller ${CMAKE_CURRENT_LIST_DIR}/test_navi_controller.cpp ${TEST_NAVI_SRC})
+add_executable(test_navi_controller EXCLUDE_FROM_ALL ${CMAKE_CURRENT_LIST_DIR}/test_navi_controller.cpp ${TEST_NAVI_SRC})
 target_include_directories(test_navi_controller PUBLIC ${TEST_NAVI_INCL_DIRS})
 target_link_libraries(test_navi_controller ${PLATFORM_LIBS} ${TEST_NAVI_REQ_LIBS})
 SET_TARGET_PROPERTIES(test_navi_controller PROPERTIES FOLDER Test)
@@ -382,7 +405,7 @@ list(APPEND TEST_DS4_CTRLR_SRC ${LIBSTEM_GAMEPAD_SRC})
 
 # Boost
 # TODO: Eliminate boost::filesystem with C++14
-FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
+FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options thread)
 list(APPEND TEST_DS4_CTRLR_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_DS4_CTRLR_REQ_LIBS ${Boost_LIBRARIES})
 
@@ -443,7 +466,7 @@ list(APPEND TEST_DS4_CTRLR_SRC
 list(APPEND TEST_DS4_CTRLR_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
 list(APPEND TEST_DS4_CTRLR_REQ_LIBS PSMoveProtocol)
 
-add_executable(test_ds4_controller ${CMAKE_CURRENT_LIST_DIR}/test_ds4_controller.cpp ${TEST_DS4_CTRLR_SRC})
+add_executable(test_ds4_controller EXCLUDE_FROM_ALL ${CMAKE_CURRENT_LIST_DIR}/test_ds4_controller.cpp ${TEST_DS4_CTRLR_SRC})
 target_include_directories(test_ds4_controller PUBLIC ${TEST_DS4_CTRLR_INCL_DIRS})
 target_link_libraries(test_ds4_controller ${PLATFORM_LIBS} ${TEST_DS4_CTRLR_REQ_LIBS})
 SET_TARGET_PROPERTIES(test_ds4_controller PROPERTIES FOLDER Test)
@@ -487,62 +510,6 @@ install(TARGETS test_console_CAPI
 ELSE() #Linux/Darwin
 ENDIF()
 
-#
-# TEST_KALMAN_FILTER
-#
-
-list(APPEND TEST_KALMAN_INCL_DIRS
-    ${ROOT_DIR}/src/psmovemath/
-    ${ROOT_DIR}/src/psmoveservice/Device/Interface
-    ${ROOT_DIR}/src/psmoveservice/Filter/
-    ${ROOT_DIR}/src/psmoveservice/PSMoveController
-    ${ROOT_DIR}/src/psmoveservice/Server/)
-list(APPEND TEST_KALMAN_SRC
-    ${ROOT_DIR}/src/psmovemath/MathAlignment.h
-    ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
-    ${ROOT_DIR}/src/psmovemath/MathEigen.h
-    ${ROOT_DIR}/src/psmovemath/MathEigen.cpp
-    ${ROOT_DIR}/src/psmovemath/MathUtility.h
-    ${ROOT_DIR}/src/psmovemath/MathUtility.cpp
-    ${ROOT_DIR}/src/psmoveservice/Filter/CompoundPoseFilter.h
-    ${ROOT_DIR}/src/psmoveservice/Filter/CompoundPoseFilter.cpp
-    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanOrientationFilter.h
-    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanOrientationFilter.cpp
-    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanPositionFilter.h
-    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanPositionFilter.cpp
-    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanPoseFilter.h
-    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanPoseFilter.cpp
-    ${ROOT_DIR}/src/psmoveservice/Filter/OrientationFilter.h
-    ${ROOT_DIR}/src/psmoveservice/Filter/OrientationFilter.cpp
-    ${ROOT_DIR}/src/psmoveservice/Filter/PoseFilterInterface.h
-    ${ROOT_DIR}/src/psmoveservice/Filter/PoseFilterInterface.cpp
-    ${ROOT_DIR}/src/psmoveservice/Filter/PositionFilter.h
-    ${ROOT_DIR}/src/psmoveservice/Filter/PositionFilter.cpp
-    ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.h
-    ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.cpp)
- 
-# Eigen math library
-list(APPEND TEST_KALMAN_INCL_DIRS ${EIGEN3_INCLUDE_DIR})
-list(APPEND TEST_KALMAN_INCL_DIRS ${ROOT_DIR}/thirdparty/kalman/include/)
-
-add_executable(test_kalman_filter ${CMAKE_CURRENT_LIST_DIR}/test_kalman_filter.cpp ${TEST_KALMAN_SRC})
-target_include_directories(test_kalman_filter PUBLIC ${TEST_KALMAN_INCL_DIRS})
-SET_TARGET_PROPERTIES(test_kalman_filter PROPERTIES FOLDER Test)
-
-# Install
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    install(TARGETS test_kalman_filter
-        CONFIGURATIONS Debug
-        RUNTIME DESTINATION ${PSM_DEBUG_INSTALL_PATH}/bin
-        LIBRARY DESTINATION ${PSM_DEBUG_INSTALL_PATH}/lib
-        ARCHIVE DESTINATION ${PSM_DEBUG_INSTALL_PATH}/lib)
-    install(TARGETS test_kalman_filter
-        CONFIGURATIONS Release
-        RUNTIME DESTINATION ${PSM_RELEASE_INSTALL_PATH}/bin
-        LIBRARY DESTINATION ${PSM_RELEASE_INSTALL_PATH}/lib
-        ARCHIVE DESTINATION ${PSM_RELEASE_INSTALL_PATH}/lib)        
-ELSE() #Linux/Darwin
-ENDIF()
 
 #
 # UNIT_TESTS

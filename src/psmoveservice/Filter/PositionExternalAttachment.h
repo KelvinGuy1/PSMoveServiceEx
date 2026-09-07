@@ -7,11 +7,14 @@
 #include <list>
 
 #ifdef WIN32
-#include <windows.h> 
-#include <stdio.h> 
+#include <windows.h>
+#include <stdio.h>
 #include <tchar.h>
 #include <strsafe.h>
 #include <fstream>
+#else
+typedef void* HANDLE;
+#define INVALID_HANDLE_VALUE ((HANDLE)-1)
 #endif
 
 //-- definitions -----

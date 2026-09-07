@@ -8,6 +8,7 @@
 
 #include "Camera.h"
 
+#include <string>
 #include <map>
 #include <utility> // std::pair
 

@@ -53,8 +53,9 @@ ENDIF()
 
 # OpenCV
 # Override by adding "-DOpenCV_DIR=C:\path\to\opencv\build" to your cmake command
-IF(NOT OpenCV_DIR)
-    IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+
+    IF(NOT OpenCV_DIR)
         ExternalProject_Add(opencv
           PREFIX ${ROOT_DIR}/deps/opencv
           GIT_REPOSITORY https://github.com/opencv/opencv.git
@@ -97,7 +98,8 @@ IF(NOT OpenCV_DIR)
         add_definitions(-DHAS_OPENCV)
 
         set(OpenCV_DIR ${ROOT_DIR}/deps/local)
-        set(OpenCV_INCLUDE_DIRS ${ROOT_DIR}/deps/local/include )
+        set(OpenCV_INCLUDE_DIRS ${ROOT_DIR}/deps/local/include)
+
         if (${CMAKE_C_SIZEOF_DATA_PTR} EQUAL 8)
             set(OPENCV_LIBS_DIR ${ROOT_DIR}/deps/local/x64/vc14/staticlib)
         else()
@@ -105,30 +107,73 @@ IF(NOT OpenCV_DIR)
         endif()
 
         foreach(__CVLIB core calib3d features2d flann imgproc imgcodecs ml highgui objdetect video videoio)
-            set(OpenCV_${__CVLIB}_LIBRARY debug ${OPENCV_LIBS_DIR}/opencv_${__CVLIB}310d.lib optimized ${OPENCV_LIBS_DIR}/opencv_${__CVLIB}310.lib CACHE STRING "" FORCE)
+            set(OpenCV_${__CVLIB}_LIBRARY
+                debug ${OPENCV_LIBS_DIR}/opencv_${__CVLIB}310d.lib
+                optimized ${OPENCV_LIBS_DIR}/opencv_${__CVLIB}310.lib
+                CACHE STRING "" FORCE)
             set(OpenCV_LIBS ${OpenCV_LIBS} ${OpenCV_${__CVLIB}_LIBRARY})
-        endforeach(__CVLIB)    
+        endforeach(__CVLIB)
 
         foreach(__CVLIB libjpeg libpng libwebp zlib)
-            set(OpenCV_${__CVLIB}_LIBRARY debug ${OPENCV_LIBS_DIR}/${__CVLIB}d.lib optimized ${OPENCV_LIBS_DIR}/${__CVLIB}.lib CACHE STRING "" FORCE)
+            set(OpenCV_${__CVLIB}_LIBRARY
+                debug ${OPENCV_LIBS_DIR}/${__CVLIB}d.lib
+                optimized ${OPENCV_LIBS_DIR}/${__CVLIB}.lib
+                CACHE STRING "" FORCE)
             set(OpenCV_LIBS ${OpenCV_LIBS} ${OpenCV_${__CVLIB}_LIBRARY})
-        endforeach(__CVLIB)     
+        endforeach(__CVLIB)
 
         LIST(APPEND OpenCV_LIBS vfw32.lib)
 
-    ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-        # Location of homebrew opencv3's OpenCVConfig.cmake
-        # Alternatively, can do `brew ln opencv3 --force`
-        MESSAGE(STATUS "Using homebrew opencv3")
-        set(OpenCV_DIR "/usr/local/opt/opencv3/share/OpenCV")
     ELSE()
-        set(OpenCV_DIR “/usr/local/share/OpenCV”)
-    ENDIF()#Windows or Darwin
-ENDIF(NOT OpenCV_DIR)
-LIST(APPEND CMAKE_MODULE_PATH ${OpenCV_DIR})
-set(OpenCV_STATIC ON)
-IF(NOT(${CMAKE_SYSTEM_NAME} MATCHES "Windows"))
+        # Existing externally supplied Windows OpenCV.
+        LIST(APPEND CMAKE_MODULE_PATH ${OpenCV_DIR})
+        set(OpenCV_STATIC ON)
+        FIND_PACKAGE(OpenCV REQUIRED)
+    ENDIF()
+
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+
+    # Location of Homebrew OpenCV3's OpenCVConfig.cmake.
+    # Alternatively, use `brew ln opencv3 --force`.
+    MESSAGE(STATUS "Using homebrew opencv3")
+
+    IF(NOT OpenCV_DIR)
+        set(OpenCV_DIR "/usr/local/opt/opencv3/share/OpenCV")
+    ENDIF()
+
+    LIST(APPEND CMAKE_MODULE_PATH ${OpenCV_DIR})
+    set(OpenCV_STATIC ON)
     FIND_PACKAGE(OpenCV REQUIRED)
+
+ELSE()
+
+    # Linux
+    #
+    # Do NOT use OpenCVConfig.cmake here. The Arch opencv4 package
+    # provides correct pkg-config metadata:
+    #
+    #   -I/usr/include/opencv4
+    #   -L/usr/lib/opencv4
+    #
+    # This also avoids relying on a distro-specific OpenCVConfig.cmake
+    # installation prefix.
+
+    find_package(PkgConfig REQUIRED)
+
+    pkg_check_modules(PC_OPENCV REQUIRED IMPORTED_TARGET opencv4)
+
+    set(OpenCV_VERSION ${PC_OPENCV_VERSION})
+    set(OpenCV_INCLUDE_DIRS ${PC_OPENCV_INCLUDE_DIRS})
+    set(OpenCV_LIBRARY_DIRS ${PC_OPENCV_LIBRARY_DIRS})
+
+    # PkgConfig::PC_OPENCV carries both the include directories and
+    # linker information, so consumers can simply link ${OpenCV_LIBS}.
+    set(OpenCV_LIBS PkgConfig::PC_OPENCV)
+
+    MESSAGE(STATUS "Using OpenCV ${OpenCV_VERSION} via pkg-config")
+    MESSAGE(STATUS "OpenCV include dirs: ${OpenCV_INCLUDE_DIRS}")
+    MESSAGE(STATUS "OpenCV library dirs: ${OpenCV_LIBRARY_DIRS}")
+
 ENDIF()
 
 
@@ -147,6 +192,7 @@ IF(MSVC)
     # fix: fatal error C1128: number of sections exceeded object file format limit
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
 ENDIF()
+add_definitions(-DBOOST_ASIO_USE_TS_EXECUTOR_AS_DEFAULT)
 SET(Boost_DEBUG                OFF) #Switch this and next to ON for help debugging Boost problems.
 SET(Boost_DETAILED_FAILURE_MSG OFF)
 set(Boost_USE_STATIC_LIBS      ON) # only find static libs
@@ -165,6 +211,13 @@ ENDIF(MSVC)
 set(PROTOBUF_ORIG_FIND_LIBRARY_SUFFIXES "${CMAKE_FIND_LIBRARY_SUFFIXES}") # Store original
 set(CMAKE_FIND_LIBRARY_SUFFIXES .a .lib .so .dylib .dll)  # Prefer static libs
 find_package(Protobuf REQUIRED)
+
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(PROTOBUF_PC REQUIRED protobuf)
+set(PROTOBUF_LIBRARIES ${PROTOBUF_PC_LIBRARIES})
+set(PROTOBUF_LIBRARY_DIRS ${PROTOBUF_PC_LIBRARY_DIRS})
+link_directories(${PROTOBUF_LIBRARY_DIRS})
+find_package(absl REQUIRED CONFIG)
 set(CMAKE_FIND_LIBRARY_SUFFIXES "${PROTOBUF_ORIG_FIND_LIBRARY_SUFFIXES}")  # Restore original
 include_directories(${CMAKE_BINARY_DIR}/psmoveprotocol)  # This is where the .proto files are compiled to.
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")

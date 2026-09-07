@@ -1137,7 +1137,7 @@ computeTrackerCameraPose(
         cvObjectPoints.push_back(cv::Point3f(worldPoint.x, worldPoint.y, worldPoint.z));
 
 		//###HipsterSloth $TODO for some reason I need to invert the y points to get the correct tracker locations
-		// I suspect this has something to do with how I am constructing the intrinsic matrix
+        // I suspect this has something to do with how I am constructing the intrinsic matrix
         cvImagePoints.push_back(cv::Point2f(screenPoint.x, trackerPixelDimensions.y - screenPoint.y));
     }
 

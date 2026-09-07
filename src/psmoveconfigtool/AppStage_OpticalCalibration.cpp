@@ -215,7 +215,7 @@ void AppStage_OpticalCalibration::enter()
 	m_poseNoiseSamplesSet->clear();
 
     // Initialize the controller state
-    assert(controllerInfo->ControllerID != -1);
+    assert(m_iControllerId != -1);
     assert(m_controllerView == nullptr);
 	PSM_AllocateControllerListener(m_iControllerId);
 	m_controllerView= PSM_GetController(m_iControllerId);

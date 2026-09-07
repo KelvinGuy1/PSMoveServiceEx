@@ -375,8 +375,8 @@ void OrientationTargetOpticalARG::UpdateOpticalTarget(
 			ServerControllerViewPtr OtherControllerView = DeviceManager::getInstance()->getControllerViewPtr(1);
 			if (ControllerView != nullptr && OtherControllerView != nullptr && ControllerView->getIsOpen() && OtherControllerView->getIsOpen())
 			{
-				IControllerInterface *current_controller = ControllerView->castChecked<IControllerInterface>();
-				IControllerInterface *other_controller = OtherControllerView->castChecked<IControllerInterface>();
+				IControllerInterface *current_controller = dynamic_cast<IControllerInterface *>(ControllerView->getDevice());
+				IControllerInterface *other_controller = dynamic_cast<IControllerInterface *>(OtherControllerView->getDevice());
 
 				CommonDevicePosition dev_pos = ControllerView->getFilteredPose(current_controller->getPredictionTime(), current_controller->getOrientationPredictionTime()).PositionCm;
 				CommonDevicePosition dev_other_pos = OtherControllerView->getFilteredPose(other_controller->getPredictionTime(), other_controller->getOrientationPredictionTime()).PositionCm;

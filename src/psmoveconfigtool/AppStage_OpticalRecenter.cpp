@@ -68,7 +68,7 @@ void AppStage_OpticalRecenter::enter()
 	m_menuState = eCalibrationMenuState::inactive;
 
     // Initialize the controller state
-    assert(controllerInfo->ControllerID != -1);
+    assert(m_iControllerId != -1);
     assert(m_controllerView == nullptr);
 	PSM_AllocateControllerListener(m_iControllerId);
 	m_controllerView= PSM_GetController(m_iControllerId);

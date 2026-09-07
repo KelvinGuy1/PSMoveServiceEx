@@ -1,6 +1,7 @@
 // -- includes -----
 #include "TrackerDeviceEnumerator.h"
 #include "VirtualTrackerEnumerator.h"
+#include "GenericWebcamEnumerator.h"
 #include "ServerUtility.h"
 #include "USBDeviceManager.h"
 #include "ServerLog.h"
@@ -9,6 +10,7 @@
 
 #define ENUM_INDEX_VIRTUAL 0
 #define ENUM_INDEX_HID 1
+#define ENUM_INDEX_GENERIC 2
 
 // -- private definitions -----
 #ifdef _MSC_VER
@@ -66,33 +68,41 @@ TrackerDeviceEnumerator::TrackerDeviceEnumerator(
 	}
 	case eAPIType::CommunicationType_ALL:
 	{
-		for (int i = 0; i < 2; i++)
-		{
-			switch (i)
-			{
-			case ENUM_INDEX_VIRTUAL:
-			{
-				AnyDeviceEnumerator _enumerator;
-				_enumerator.m_usb_enumerator = nullptr;
-				_enumerator.enumerator = new VirtualTrackerEnumerator();
-				enumerators.push_back(_enumerator);
-				break;
-			}
-			case ENUM_INDEX_HID:
-			{
-				AnyDeviceEnumerator _enumerator;
-				_enumerator.m_usb_enumerator = usb_device_enumerator_allocate();
-				_enumerator.enumerator = nullptr;
-				enumerators.push_back(_enumerator);
-				break;
-			}
-			default:
-			{
-				assert(0 && "unreachable");
-			}
-			}
-		}
-		enumerator_count = 2;
+                for (int i = 0; i < 3; i++)
+                {
+                        switch (i)
+                        {
+                        case ENUM_INDEX_VIRTUAL:
+                        {
+                                AnyDeviceEnumerator _enumerator;
+                                _enumerator.m_usb_enumerator = nullptr;
+                                _enumerator.enumerator = new VirtualTrackerEnumerator();
+                                enumerators.push_back(_enumerator);
+                                break;
+                        }
+                        case ENUM_INDEX_HID:
+                        {
+                                AnyDeviceEnumerator _enumerator;
+                                _enumerator.m_usb_enumerator = usb_device_enumerator_allocate();
+                                _enumerator.enumerator = nullptr;
+                                enumerators.push_back(_enumerator);
+                                break;
+                        }
+                        case ENUM_INDEX_GENERIC:
+                        {
+                                AnyDeviceEnumerator _enumerator;
+                                _enumerator.m_usb_enumerator = nullptr;
+                                _enumerator.enumerator = new GenericWebcamEnumerator();
+                                enumerators.push_back(_enumerator);
+                                break;
+                        }
+                        default:
+                        {
+                                assert(0 && "unreachable");
+                        }
+                        }
+                }
+                enumerator_count = 3;
 		break;
 	}
 	}

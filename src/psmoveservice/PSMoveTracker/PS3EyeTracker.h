@@ -150,9 +150,23 @@ private:
     std::string USBDevicePath;
     class PSEyeVideoCapture *VideoCapture;
     class PSEyeCaptureData *CaptureData;
-    ITrackerInterface::eDriverType DriverType;    
-    
-    // Read Controller State
+
+    // Generic UVC webcam capture backend (V4L2 + MJPEG), used instead of
+    // VideoCapture/CaptureData above when getDeviceType() enumeration
+    // identifies a non-PS3Eye camera. Only one of the two backends is ever
+    // active for a given open device.
+    enum eCaptureBackend
+    {
+        Backend_PSEye,
+        Backend_V4L2
+    };
+    eCaptureBackend m_captureBackend;
+    class V4L2VideoCapture *m_v4l2Capture;
+
+    // PS4 Eye specific
+    int m_ps4EyeSubDevice;
+
+    ITrackerInterface::eDriverType DriverType;
     int NextPollSequenceNumber;
     std::deque<PS3EyeTrackerState> TrackerStates;
 };

@@ -101,6 +101,8 @@ file(GLOB PSMOVESERVICE_TRACKER_SRC
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker/*.h"
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker/PSEye/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker/PSEye/*.h"
+    "${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker/V4L2/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker/V4L2/*.h"
 )
 source_group("Tracker" FILES ${PSMOVESERVICE_TRACKER_SRC})
 
@@ -142,6 +144,7 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS
     ${CMAKE_CURRENT_LIST_DIR}/PSNaviController
     ${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker
     ${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker/PSEye
+    ${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker/V4L2
     ${CMAKE_CURRENT_LIST_DIR}/Server
     ${CMAKE_CURRENT_LIST_DIR}/Utils
     ${CMAKE_CURRENT_LIST_DIR}/VirtualController
@@ -167,7 +170,7 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS ${PROTOBUF_INCLUDE_DIRS})
 list(APPEND PSMOVE_SERVICE_REQ_LIBS ${PROTOBUF_LIBRARIES})
 
 # Boost. TODO: Trim this list.
-find_package(Boost REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
+find_package(Boost REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options thread)
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND PSMOVE_SERVICE_REQ_LIBS ${Boost_LIBRARIES})
 
@@ -197,9 +200,7 @@ list(APPEND PSMOVE_SERVICE_REQ_LIBS PSMoveMath)
 # Requires OpenCV, PS3EYEDriver (Mac/Win64), CLEye (Win32)
 
 # OpenCV - empty on Windows
-IF(MSVC) # not necessary for OpenCV > 2.8 on other build systems
-    list(APPEND PSMOVE_SERVICE_INCL_DIRS ${OpenCV_INCLUDE_DIRS}) 
-ENDIF()
+list(APPEND PSMOVE_SERVICE_INCL_DIRS ${OpenCV_INCLUDE_DIRS})
 list(APPEND PSMOVE_SERVICE_REQ_LIBS ${OpenCV_LIBS})
 
 # PS Eye - This brings in LIBUSB on Windows and Mac, but not Linux

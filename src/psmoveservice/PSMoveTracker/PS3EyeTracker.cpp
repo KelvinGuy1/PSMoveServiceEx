@@ -3,10 +3,58 @@
 #include "ServerLog.h"
 #include "ServerUtility.h"
 #include "PSEyeVideoCapture.h"
+#include "V4L2/V4L2VideoCapture.h"
+#include <linux/videodev2.h>
 #include "PSMoveProtocol.pb.h"
 #include "DeviceManager.h"
 #include "TrackerDeviceEnumerator.h"
 #include "TrackerManager.h"
+#include <fstream>
+
+namespace {
+    constexpr int CAP_MODE_BGR  = 0;
+    constexpr int CAP_MODE_RGB  = 1;
+    constexpr int CAP_MODE_GRAY = 2;
+    constexpr int CAP_MODE_YUYV = 3;
+
+    bool getUsbVendorProduct(const std::string &devicePath, int &outVendorId, int &outProductId)
+    {
+        std::string videoName = devicePath.substr(devicePath.find_last_of('/') + 1);
+        std::string sysDevLink = "/sys/class/video4linux/" + videoName + "/device";
+
+        char resolved[PATH_MAX];
+        if (realpath(sysDevLink.c_str(), resolved) == nullptr)
+            return false;
+
+        std::string dir(resolved);
+
+        for (int depth = 0; depth < 6; ++depth)
+        {
+            std::ifstream vendorFile(dir + "/idVendor");
+            std::ifstream productFile(dir + "/idProduct");
+
+            if (vendorFile.good() && productFile.good())
+            {
+                std::string vendorHex, productHex;
+                std::getline(vendorFile, vendorHex);
+                std::getline(productFile, productHex);
+
+                if (!vendorHex.empty() && !productHex.empty())
+                {
+                    outVendorId = static_cast<int>(strtol(vendorHex.c_str(), nullptr, 16));
+                    outProductId = static_cast<int>(strtol(productHex.c_str(), nullptr, 16));
+                    return true;
+                }
+            }
+
+            size_t lastSlash = dir.find_last_of('/');
+            if (lastSlash == std::string::npos || lastSlash == 0)
+                break;
+            dir = dir.substr(0, lastSlash);
+        }
+        return false;
+    }
+}
 #include "opencv2/opencv.hpp"
 
 // -- constants -----
@@ -21,16 +69,13 @@ class PSEyeCaptureData
 {
 public:
     PSEyeCaptureData()
-        : frame()
-		, frameHeight(-1)
-		, frameWidth(-1)
+    : frameHeight(-1)
+    , frameWidth(-1)
     {
-
     }
 
-	int frameHeight;
-	int frameWidth;
-
+    int frameHeight;
+    int frameWidth;
     cv::Mat frame;
 };
 
@@ -296,6 +341,8 @@ PS3EyeTracker::PS3EyeTracker()
     , USBDevicePath()
     , VideoCapture(nullptr)
     , CaptureData(nullptr)
+    , m_captureBackend(Backend_PSEye)
+    , m_v4l2Capture(nullptr)
     , DriverType(PS3EyeTracker::Libusb)
     , NextPollSequenceNumber(0)
     , TrackerStates()
@@ -308,20 +355,6 @@ PS3EyeTracker::~PS3EyeTracker()
     {
         SERVER_LOG_ERROR("~PS3EyeTracker") << "Tracker deleted without calling close() first!";
     }
-}
-
-// PSMoveTracker
-bool PS3EyeTracker::open() // Opens the first HID device for the tracker
-{
-    TrackerDeviceEnumerator enumerator(TrackerDeviceEnumerator::CommunicationType_ALL);
-    bool success = false;
-
-    if (enumerator.is_valid())
-    {
-        success = open(&enumerator);
-    }
-
-    return success;
 }
 
 // -- IDeviceInterface
@@ -349,7 +382,7 @@ bool PS3EyeTracker::open(const DeviceEnumerator *enumerator)
     const char *cur_dev_path = tracker_enumerator->get_path();
 
     bool bSuccess = false;
-    
+
     if (getIsOpen())
     {
         SERVER_LOG_WARNING("PS3EyeTracker::open") << "PS3EyeTracker(" << cur_dev_path << ") already open. Ignoring request.";
@@ -359,30 +392,43 @@ bool PS3EyeTracker::open(const DeviceEnumerator *enumerator)
     {
         const int camera_index = tracker_enumerator->get_camera_index();
 
+		SERVER_LOG_INFO("PS3EyeTracker::open") << "DEBUG device_type=" << (int)tracker_enumerator->get_device_type() << " path=" << cur_dev_path;
 		switch (tracker_enumerator->get_device_type())
 		{
-			case CommonDeviceState::eDeviceType::PS3EYE:
-			{
-				const int camera_hid_index = tracker_enumerator->get_camera_hid_index();
+            case CommonDeviceState::eDeviceType::PS3EYE:
+            {
+                std::string devPathStr(cur_dev_path);
+                bool isVideoNode = (devPathStr.find("/dev/video") == 0);
 
-				SERVER_LOG_INFO("PS3EyeTracker::open") << "Opening PSEyeVideoCapture(" << cur_dev_path << ", camera_hid_index=" << camera_hid_index << ", camera_index=" << camera_index << ")";
+                if (isVideoNode)
+                {
+                    // Use V4L2 for any /dev/video* node (this includes PS3Eye cameras now)
+                    SERVER_LOG_INFO("PS3EyeTracker::open") << "Opening V4L2VideoCapture(" << cur_dev_path << ", camera_index=" << camera_index << ")";
 
-				VideoCapture = new PSEyeVideoCapture(camera_hid_index, camera_index, PSEyeVideoCapture::eVideoCaptureType::CaptureType_HID);
+                    m_captureBackend = Backend_V4L2;
+                    m_v4l2Capture = new V4L2VideoCapture();
 
-				if (VideoCapture->isOpened())
-				{
-					CaptureData = new PSEyeCaptureData;
-					USBDevicePath = enumerator->get_path();
-					bSuccess = true;
-				}
-				else
-				{
-					SERVER_LOG_ERROR("PS3EyeTracker::open") << "Failed to open PS3EyeTracker(" << cur_dev_path << ", camera_hid_index=" << camera_hid_index << ", camera_index=" << camera_index << ")";
-
-					close();
-				}
-				break;
-			}
+                    if (m_v4l2Capture->open(cur_dev_path, 640, 480, 30))
+                    {
+                        CaptureData = new PSEyeCaptureData;
+                        CaptureData->frame = cv::Mat::zeros(480, 640, CV_8UC3);
+                        USBDevicePath = enumerator->get_path();
+                        bSuccess = true;
+                    }
+                    else
+                    {
+                        SERVER_LOG_ERROR("PS3EyeTracker::open") << "Failed to open V4L2VideoCapture(" << cur_dev_path << ", camera_index=" << camera_index << ")";
+                        close();
+                    }
+                }
+                else
+                {
+                    // USB path (like USB\VID_1415...) – skip it; the generic enumerator will handle the /dev/video node.
+                    SERVER_LOG_WARNING("PS3EyeTracker::open") << "Skipping USB path for PS3Eye: " << cur_dev_path;
+                    bSuccess = false;
+                }
+                break;
+            }
 			case CommonDeviceState::eDeviceType::VirtualTracker:
 			{
 				const int camera_virt_index = tracker_enumerator->get_camera_virt_index();
@@ -407,34 +453,80 @@ bool PS3EyeTracker::open(const DeviceEnumerator *enumerator)
 			}
 		}
     }
-    
+
     if (bSuccess)
     {
-        std::string identifier = VideoCapture->getUniqueIndentifier();
+        std::string identifier;
+        if (m_captureBackend == Backend_V4L2)
+        {
+            // Use persistent USB port identifier instead of /dev/videoN
+            identifier = m_v4l2Capture->getPersistentIdentifier();
+            // Sanitize (replace slashes and backslashes)
+            for (char &c : identifier)
+            {
+                if (c == '/' || c == '\\')
+                    c = '_';
+            }
+        }
+        else
+        {
+                identifier = VideoCapture->getUniqueIndentifier();
+        }
         std::string config_name = "PS3EyeTrackerConfig_";
         config_name.append(identifier);
 
         cfg = PS3EyeTrackerConfig(config_name);
-
-		// Load the ps3eye config
         cfg.load();
-		// Save the config back out again in case defaults changed
-		cfg.save();
+        cfg.save();
 
-		VideoCapture->set(cv::CAP_PROP_FRAME_WIDTH, cfg.frame_width);
-		VideoCapture->set(cv::CAP_PROP_EXPOSURE, cfg.exposure);
-		VideoCapture->set(cv::CAP_PROP_GAIN, cfg.gain);
-		VideoCapture->set(cv::CAP_PROP_FPS, cfg.frame_rate);
+        if (m_captureBackend == Backend_PSEye)
+        {
+            const double currentFrameWidth = VideoCapture->get(cv::CAP_PROP_FRAME_WIDTH);
+            const double currentFrameRate = VideoCapture->get(cv::CAP_PROP_FPS);
+            const double currentExposure = VideoCapture->get(cv::CAP_PROP_EXPOSURE);
+            const double currentGain = VideoCapture->get(cv::CAP_PROP_GAIN);
 
-		VideoCapture->set(CV_CAP_PROP_MAXFAILPOLL, cfg.max_poll_failure_timeout_ms);
+            if (currentFrameWidth != cfg.frame_width)
+                VideoCapture->set(cv::CAP_PROP_FRAME_WIDTH, cfg.frame_width);
+
+            if (currentExposure != cfg.exposure)
+                VideoCapture->set(cv::CAP_PROP_EXPOSURE, cfg.exposure);
+
+            if (currentGain != cfg.gain)
+                VideoCapture->set(cv::CAP_PROP_GAIN, cfg.gain);
+
+            if (currentFrameRate != cfg.frame_rate)
+                VideoCapture->set(cv::CAP_PROP_FPS, cfg.frame_rate);
+            VideoCapture->set(CV_CAP_PROP_MAXFAILPOLL, cfg.max_poll_failure_timeout_ms);
+        }
+        else if (m_captureBackend == Backend_V4L2)
+        {
+            // Reapply framerate from config
+            if (m_v4l2Capture)
+            {
+                m_v4l2Capture->setFramerate(static_cast<int>(cfg.frame_rate));
+
+                // Reapply resolution if it differs from current
+                int currentWidth = m_v4l2Capture->getWidth();
+                int currentHeight = m_v4l2Capture->getHeight();
+                if (currentWidth != static_cast<int>(cfg.frame_width) ||
+                    currentHeight != static_cast<int>(cfg.frame_height))
+                {
+                    m_v4l2Capture->setResolution(static_cast<int>(cfg.frame_width),
+                                                 static_cast<int>(cfg.frame_height));
+                }
+            }
+            // Resolution is already negotiated at open, no need to reapply
+        }
     }
+
 
     return bSuccess;
 }
 
 bool PS3EyeTracker::getIsOpen() const
 {
-    return VideoCapture != nullptr;
+    return VideoCapture != nullptr || m_v4l2Capture != nullptr;
 }
 
 bool PS3EyeTracker::getIsReadyToPoll() const
@@ -448,44 +540,93 @@ IDeviceInterface::ePollResult PS3EyeTracker::poll()
 
     if (getIsOpen())
     {
+                if (m_captureBackend == Backend_V4L2)
+                {
+                        // Generic UVC webcam via direct V4L2/MJPEG capture: no sync gate,
+                        // no property-flag dance, no GStreamer instability. Just a blocking read.
+                        if (m_v4l2Capture->read(CaptureData->frame) && !CaptureData->frame.empty())
+                        {
+                            CaptureData->frameWidth = m_v4l2Capture->getWidth();
+                            CaptureData->frameHeight = m_v4l2Capture->getHeight();
+                            DeviceManager::getInstance()->m_tracker_manager->setTrackerReady(m_v4l2Capture->getIndex());
+                            result = IControllerInterface::_PollResultSuccessNewData;
+                        }
+                        else
+                        {
+                            // If read failed, keep a black frame to avoid downstream crashes
+                            CaptureData->frame = cv::Mat::zeros(480, 640, CV_8UC3);
+                            CaptureData->frameWidth = 640;
+                            CaptureData->frameHeight = 480;
+                            result = IControllerInterface::_PollResultSuccessIgnore;
+                        }
+                }
+                else
+                {
 		// Prepare frames whenever we can.
-		if (VideoCapture->grab())
-		{
-			if ((bool)VideoCapture->get(CV_CAP_PROP_FRAMEAVAILABLE))
-			{
-				DeviceManager::getInstance()->m_tracker_manager->setTrackerReady(VideoCapture->getIndex());
-			}
+                bool isCustomCaptureDomain = VideoCapture->isUsingCustomCapture();
 
-			// Only poll frames when every tracker is ready to sync freams.
-			if (!DeviceManager::getInstance()->m_tracker_manager->isTrackerPollAllowed())
-			{
-				// Keep iterating. Still has old data.
-				result = IControllerInterface::_PollResultSuccessIgnore;
-			}
-			else
-			{
-				if (!VideoCapture->retrieve(CaptureData->frame, cv::CAP_OPENNI_BGR_IMAGE))
-				{
-					// Device still in valid state
-					result = IControllerInterface::_PollResultSuccessIgnore;
-				}
-				else
-				{
-					CaptureData->frameWidth = VideoCapture->get(CV_CAP_PROP_FRAME_WIDTH);
-					CaptureData->frameHeight = VideoCapture->get(CV_CAP_PROP_FRAME_HEIGHT);
+                if (isCustomCaptureDomain)
+                {
+                        // Custom PS3Eye-family capture wrappers use a two-step grab()/retrieve()
+                        // protocol with a custom CV_CAP_PROP_FRAMEAVAILABLE sync flag.
+                        if (VideoCapture->grab())
+                        {
+                                if ((bool)VideoCapture->get(CV_CAP_PROP_FRAMEAVAILABLE))
+                                {
+                                        DeviceManager::getInstance()->m_tracker_manager->setTrackerReady(VideoCapture->getIndex());
+                                }
 
-					// New data available. Keep iterating.
-					result = IControllerInterface::_PollResultSuccessNewData;
+                                // Only poll frames when every tracker is ready to sync freams.
+                                if (!DeviceManager::getInstance()->m_tracker_manager->isTrackerPollAllowed())
+                                {
+                                        // Keep iterating. Still has old data.
+                                        result = IControllerInterface::_PollResultSuccessIgnore;
+                                }
+                                else
+                                {
+                                        if (!VideoCapture->retrieve(CaptureData->frame, cv::CAP_OPENNI_BGR_IMAGE))
+                                        {
+                                                // Device still in valid state
+                                                result = IControllerInterface::_PollResultSuccessIgnore;
+                                        }
+                                        else
+                                        {
+                                                CaptureData->frameWidth = VideoCapture->get(cv::CAP_PROP_FRAME_WIDTH);
+                                                CaptureData->frameHeight = VideoCapture->get(cv::CAP_PROP_FRAME_HEIGHT);
 
-					// We received the frame and every tracker polled. We need a new frame!
-					VideoCapture->set(CV_CAP_PROP_FRAMEAVAILABLE, false);
-				}
-			}
-		}
-		else
-		{
-			result = IControllerInterface::_PollResultSuccessIgnore;
-		}
+                                                // New data available. Keep iterating.
+                                                result = IControllerInterface::_PollResultSuccessNewData;
+                                                // We received the frame and every tracker polled. We need a new frame!
+                                                VideoCapture->set(CV_CAP_PROP_FRAMEAVAILABLE, false);
+                                        }
+                                }
+                        }
+                        else
+                        {
+                                result = IControllerInterface::_PollResultSuccessIgnore;
+                        }
+                }
+                else
+                {
+                        // Generic UVC/GStreamer webcam: skip the PS3Eye-specific grab()/flag/retrieve()
+                        // protocol AND the multi-tracker sync gate (irrelevant for a single generic camera)
+                        // entirely, and use OpenCV's standard combined blocking read().
+                        DeviceManager::getInstance()->m_tracker_manager->setTrackerReady(VideoCapture->getIndex());
+
+                        if (VideoCapture->read(CaptureData->frame) && !CaptureData->frame.empty())
+                        {
+                            CaptureData->frameWidth = VideoCapture->get(cv::CAP_PROP_FRAME_WIDTH);
+                            CaptureData->frameHeight = VideoCapture->get(cv::CAP_PROP_FRAME_HEIGHT);
+
+                                result = IControllerInterface::_PollResultSuccessNewData;
+                        }
+                        else
+                        {
+                                result = IControllerInterface::_PollResultSuccessIgnore;
+                        }
+                }
+
+                }
 
         {
             PS3EyeTrackerState newState;
@@ -524,6 +665,14 @@ void PS3EyeTracker::close()
         delete VideoCapture;
         VideoCapture = nullptr;
     }
+
+    if (m_v4l2Capture != nullptr)
+    {
+        delete m_v4l2Capture;
+        m_v4l2Capture = nullptr;
+    }
+
+    m_captureBackend = Backend_PSEye;
 }
 
 long PS3EyeTracker::getMaxPollFailureCount() const
@@ -567,39 +716,60 @@ bool PS3EyeTracker::getVideoFrameDimensions(
 {
     bool bSuccess = true;
 
+    int width;
+    int height;
+
+    if (m_captureBackend == Backend_V4L2)
+    {
+        width = m_v4l2Capture->getWidth();
+        height = m_v4l2Capture->getHeight();
+    }
+    else
+    {
+        width = static_cast<int>(VideoCapture->get(cv::CAP_PROP_FRAME_WIDTH));
+        height = static_cast<int>(VideoCapture->get(cv::CAP_PROP_FRAME_HEIGHT));
+    }
+
     if (out_width != nullptr)
     {
-        int width = static_cast<int>(VideoCapture->get(cv::CAP_PROP_FRAME_WIDTH));
-
         if (out_stride != nullptr)
         {
-            int format = static_cast<int>(VideoCapture->get(cv::CAP_PROP_FORMAT));
             int bytes_per_pixel;
 
-            if (format != -1)
+            if (m_captureBackend == Backend_V4L2)
             {
-                switch (format)
-                {
-                case cv::CAP_MODE_BGR:
-                case cv::CAP_MODE_RGB:
-                    bytes_per_pixel = 3;
-                    break;
-                case cv::CAP_MODE_YUYV:
-                    bytes_per_pixel = 2;
-                    break;
-                case cv::CAP_MODE_GRAY:
-                    bytes_per_pixel = 1;
-                    break;
-                default:
-                    assert(false && "Unknown video format?");
-                    break;
-                }
+                // cv::imdecode() always produces a 3-channel BGR Mat for MJPEG.
+                bytes_per_pixel = 3;
             }
             else
             {
-                // Assume RGB?
-                SERVER_LOG_ERROR("PS3EyeTracker::getVideoFrameDimensions") << "Unknown video format for camera" << USBDevicePath << ")";
-                bytes_per_pixel = 3;
+                int format = static_cast<int>(VideoCapture->get(cv::CAP_PROP_FORMAT));
+
+                if (format != -1)
+                {
+                    switch (format)
+                    {
+                    case CAP_MODE_BGR:
+                    case CAP_MODE_RGB:
+                        bytes_per_pixel = 3;
+                        break;
+                    case CAP_MODE_YUYV:
+                        bytes_per_pixel = 2;
+                        break;
+                    case CAP_MODE_GRAY:
+                        bytes_per_pixel = 1;
+                        break;
+                    default:
+                        assert(false && "Unknown video format?");
+                        bytes_per_pixel = 3;
+                        break;
+                    }
+                }
+                else
+                {
+                    SERVER_LOG_ERROR("PS3EyeTracker::getVideoFrameDimensions") << "Unknown video format for camera" << USBDevicePath << ")";
+                    bytes_per_pixel = 3;
+                }
             }
 
             *out_stride = bytes_per_pixel * width;
@@ -610,57 +780,70 @@ bool PS3EyeTracker::getVideoFrameDimensions(
 
     if (out_height != nullptr)
     {
-        int height = static_cast<int>(VideoCapture->get(cv::CAP_PROP_FRAME_HEIGHT));
-
         *out_height = height;
     }
 
     return bSuccess;
 }
 
-const unsigned char *PS3EyeTracker::getVideoFrameBuffer(int &frameHeight, int &frameWidth) const
+const unsigned char *
+PS3EyeTracker::getVideoFrameBuffer(int &frameHeight, int &frameWidth) const
 {
-    const unsigned char *result = nullptr;
-
-    if (CaptureData != nullptr)
+    if (CaptureData == nullptr ||
+        CaptureData->frame.empty())
     {
-		frameHeight = CaptureData->frameHeight;
-		frameWidth = CaptureData->frameWidth;
-
-        return static_cast<const unsigned char *>(CaptureData->frame.data);
+        frameHeight = 480;
+        frameWidth = 640;
+        return nullptr;
     }
 
-    return result;
+    frameHeight = CaptureData->frame.rows;
+    frameWidth = CaptureData->frame.cols;
+
+    return CaptureData->frame.data;
 }
 
 void PS3EyeTracker::loadSettings()
 {
-	const double currentFrameWidth = VideoCapture->get(cv::CAP_PROP_FRAME_WIDTH);
-	const double currentFrameRate = VideoCapture->get(cv::CAP_PROP_FPS);
-    const double currentExposure= VideoCapture->get(cv::CAP_PROP_EXPOSURE);
-    const double currentGain= VideoCapture->get(cv::CAP_PROP_GAIN);
-
     cfg.load();
 
-	if (currentFrameWidth != cfg.frame_width)
-	{
-		VideoCapture->set(cv::CAP_PROP_FRAME_WIDTH, cfg.frame_width);
-	}
-
-    if (currentExposure != cfg.exposure)
+    if (m_captureBackend == Backend_PSEye)
     {
-        VideoCapture->set(cv::CAP_PROP_EXPOSURE, cfg.exposure);
-    }
+        const double currentFrameWidth = VideoCapture->get(cv::CAP_PROP_FRAME_WIDTH);
+        const double currentFrameRate = VideoCapture->get(cv::CAP_PROP_FPS);
+        const double currentExposure = VideoCapture->get(cv::CAP_PROP_EXPOSURE);
+        const double currentGain = VideoCapture->get(cv::CAP_PROP_GAIN);
 
-    if (currentGain != cfg.gain)
+        if (currentFrameWidth != cfg.frame_width)
+            VideoCapture->set(cv::CAP_PROP_FRAME_WIDTH, cfg.frame_width);
+
+        if (currentExposure != cfg.exposure)
+            VideoCapture->set(cv::CAP_PROP_EXPOSURE, cfg.exposure);
+
+        if (currentGain != cfg.gain)
+            VideoCapture->set(cv::CAP_PROP_GAIN, cfg.gain);
+
+        if (currentFrameRate != cfg.frame_rate)
+            VideoCapture->set(cv::CAP_PROP_FPS, cfg.frame_rate);
+    }
+    else if (m_captureBackend == Backend_V4L2 && m_v4l2Capture)
     {
-        VideoCapture->set(cv::CAP_PROP_GAIN, cfg.gain);
-    }
+        // Reapply framerate from config
+        m_v4l2Capture->setFramerate(static_cast<int>(cfg.frame_rate));
 
-	if (currentFrameRate != cfg.frame_rate)
-	{
-		VideoCapture->set(cv::CAP_PROP_FPS, cfg.frame_rate);
-	}
+        // Reapply resolution if it differs from current
+        int currentWidth = m_v4l2Capture->getWidth();
+        int currentHeight = m_v4l2Capture->getHeight();
+        if (currentWidth != static_cast<int>(cfg.frame_width) ||
+            currentHeight != static_cast<int>(cfg.frame_height))
+        {
+            m_v4l2Capture->setResolution(static_cast<int>(cfg.frame_width),
+                                         static_cast<int>(cfg.frame_height));
+        }
+
+        // Exposure and gain are already applied when the sliders move,
+        // but we could reapply them here if needed.
+    }
 }
 
 void PS3EyeTracker::saveSettings()
@@ -670,77 +853,211 @@ void PS3EyeTracker::saveSettings()
 
 void PS3EyeTracker::setFrameWidth(double value, bool bUpdateConfig)
 {
-	VideoCapture->set(cv::CAP_PROP_FRAME_WIDTH, value);
+    if (m_captureBackend == Backend_V4L2)
+    {
+        // We need both width and height – use current height from config
+        m_v4l2Capture->setResolution(static_cast<int>(value), static_cast<int>(cfg.frame_height));
+    }
+    else if (m_captureBackend == Backend_PSEye)
+    {
+        VideoCapture->set(cv::CAP_PROP_FRAME_WIDTH, value);
+    }
 
-	if (bUpdateConfig)
-	{
-		cfg.frame_width = value;
-	}
+    if (bUpdateConfig)
+        cfg.frame_width = value;
 }
 
 double PS3EyeTracker::getFrameWidth() const
 {
-	return VideoCapture->get(cv::CAP_PROP_FRAME_WIDTH);
+    if (m_captureBackend == Backend_V4L2)
+    {
+        return m_v4l2Capture->getWidth();
+    }
+
+    return VideoCapture->get(cv::CAP_PROP_FRAME_WIDTH);
 }
+
+
 
 void PS3EyeTracker::setFrameHeight(double value, bool bUpdateConfig)
 {
-	VideoCapture->set(cv::CAP_PROP_FRAME_HEIGHT, value);
+    if (m_captureBackend == Backend_V4L2)
+    {
+        m_v4l2Capture->setResolution(static_cast<int>(cfg.frame_width), static_cast<int>(value));
+    }
+    else if (m_captureBackend == Backend_PSEye)
+    {
+        VideoCapture->set(cv::CAP_PROP_FRAME_HEIGHT, value);
+    }
 
-	if (bUpdateConfig)
-	{
-		cfg.frame_height = value;
-	}
+    if (bUpdateConfig)
+        cfg.frame_height = value;
 }
 
 double PS3EyeTracker::getFrameHeight() const
 {
-	return VideoCapture->get(cv::CAP_PROP_FRAME_HEIGHT);
+    if (m_captureBackend == Backend_V4L2)
+    {
+        return m_v4l2Capture->getHeight();
+    }
+
+    return VideoCapture->get(cv::CAP_PROP_FRAME_HEIGHT);
 }
 
 void PS3EyeTracker::setFrameRate(double value, bool bUpdateConfig)
 {
-	VideoCapture->set(cv::CAP_PROP_FPS, value);
+    if (m_captureBackend == Backend_V4L2)
+    {
+        if (m_v4l2Capture->setFramerate(static_cast<int>(value)))
+        {
+            SERVER_LOG_INFO("PS3EyeTracker::setFrameRate") << "Framerate set to " << value;
+        }
+        else
+        {
+            SERVER_LOG_WARNING("PS3EyeTracker::setFrameRate") << "Failed to set framerate to " << value << " – unsupported?";
+        }
+    }
+    else if (m_captureBackend == Backend_PSEye && VideoCapture->isUsingCustomCapture())
+    {
+        VideoCapture->set(cv::CAP_PROP_FPS, value);
+    }
 
-	if (bUpdateConfig)
-	{
-		cfg.frame_rate = value;
-	}
+    if (bUpdateConfig)
+    {
+        cfg.frame_rate = value;
+        cfg.save(); // Ensure it's written to disk immediately
+    }
 }
 
 double PS3EyeTracker::getFrameRate() const
 {
-	return VideoCapture->get(cv::CAP_PROP_FPS);
+        if (m_captureBackend == Backend_V4L2)
+        {
+                return m_v4l2Capture->getFps();
+        }
+
+        return VideoCapture->get(cv::CAP_PROP_FPS);
 }
 
 void PS3EyeTracker::setExposure(double value, bool bUpdateConfig)
 {
-    VideoCapture->set(cv::CAP_PROP_EXPOSURE, value);
+    if (m_captureBackend == Backend_V4L2)
+    {
+        // Disable auto-exposure (if supported)
+        if (m_v4l2Capture->isControlSupported(V4L2_CID_EXPOSURE_AUTO))
+        {
+            m_v4l2Capture->setControl(V4L2_CID_EXPOSURE_AUTO, V4L2_EXPOSURE_MANUAL);
+        }
 
-	if (bUpdateConfig)
-	{
-		cfg.exposure = value;
-	}
+        // Try absolute exposure (webcams often use this)
+        if (m_v4l2Capture->isControlSupported(V4L2_CID_EXPOSURE_ABSOLUTE))
+        {
+            m_v4l2Capture->setControl(V4L2_CID_EXPOSURE_ABSOLUTE, static_cast<int32_t>(value));
+        }
+        // Fallback to plain exposure (PS3Eye)
+        else if (m_v4l2Capture->isControlSupported(V4L2_CID_EXPOSURE))
+        {
+            m_v4l2Capture->setControl(V4L2_CID_EXPOSURE, static_cast<int32_t>(value));
+        }
+        else
+        {
+            SERVER_LOG_WARNING("PS3EyeTracker::setExposure") << "No exposure control supported for this V4L2 device";
+        }
+    }
+    else if (m_captureBackend == Backend_PSEye && VideoCapture->isUsingCustomCapture())
+    {
+        VideoCapture->set(cv::CAP_PROP_EXPOSURE, value);
+    }
+
+    if (bUpdateConfig)
+    {
+        cfg.exposure = value;
+    }
 }
+
 
 double PS3EyeTracker::getExposure() const
 {
+    if (m_captureBackend == Backend_V4L2)
+    {
+        int32_t value = 0;
+        if (m_v4l2Capture->isControlSupported(V4L2_CID_EXPOSURE_ABSOLUTE) &&
+            m_v4l2Capture->getControl(V4L2_CID_EXPOSURE_ABSOLUTE, value))
+        {
+            return static_cast<double>(value);
+        }
+        else if (m_v4l2Capture->isControlSupported(V4L2_CID_EXPOSURE) &&
+            m_v4l2Capture->getControl(V4L2_CID_EXPOSURE, value))
+        {
+            return static_cast<double>(value);
+        }
+        return cfg.exposure;
+    }
     return VideoCapture->get(cv::CAP_PROP_EXPOSURE);
 }
 
 void PS3EyeTracker::setGain(double value, bool bUpdateConfig)
 {
-	VideoCapture->set(cv::CAP_PROP_GAIN, value);
+    if (m_captureBackend == Backend_V4L2)
+    {
+        // Try gain first
+        if (m_v4l2Capture->isControlSupported(V4L2_CID_GAIN))
+        {
+            // Disable auto-gain if supported
+            if (m_v4l2Capture->isControlSupported(V4L2_CID_AUTOGAIN))
+            {
+                m_v4l2Capture->setControl(V4L2_CID_AUTOGAIN, 0);
+            }
+            m_v4l2Capture->setControl(V4L2_CID_GAIN, static_cast<int32_t>(value));
+            SERVER_LOG_INFO("PS3EyeTracker::setGain") << "Setting gain to " << value;
+        }
+        // Fallback to brightness if gain is not supported
+        else if (m_v4l2Capture->isControlSupported(V4L2_CID_BRIGHTNESS))
+        {
+            m_v4l2Capture->setControl(V4L2_CID_BRIGHTNESS, static_cast<int32_t>(value));
+            SERVER_LOG_INFO("PS3EyeTracker::setGain") << "Gain not supported, setting brightness to " << value;
+        }
+        else
+        {
+            SERVER_LOG_WARNING("PS3EyeTracker::setGain") << "No gain or brightness control supported";
+        }
+    }
+    else if (m_captureBackend == Backend_PSEye && VideoCapture->isUsingCustomCapture())
+    {
+        VideoCapture->set(cv::CAP_PROP_GAIN, value);
+    }
 
-	if (bUpdateConfig)
-	{
-		cfg.gain = value;
-	}
+    if (bUpdateConfig)
+    {
+        cfg.gain = value;
+        cfg.save();
+    }
 }
 
 double PS3EyeTracker::getGain() const
 {
-	return VideoCapture->get(cv::CAP_PROP_GAIN);
+    if (m_captureBackend == Backend_V4L2)
+    {
+        int32_t value = 0;
+
+        // Try gain first
+        if (m_v4l2Capture->isControlSupported(V4L2_CID_GAIN) &&
+            m_v4l2Capture->getControl(V4L2_CID_GAIN, value))
+        {
+            return static_cast<double>(value);
+        }
+        // Fallback to brightness
+        else if (m_v4l2Capture->isControlSupported(V4L2_CID_BRIGHTNESS) &&
+            m_v4l2Capture->getControl(V4L2_CID_BRIGHTNESS, value))
+        {
+            return static_cast<double>(value);
+        }
+        else
+        {
+            return cfg.gain; // return last known value
+        }
+    }
+    return VideoCapture->get(cv::CAP_PROP_GAIN);
 }
 
 void PS3EyeTracker::getCameraIntrinsics(
@@ -749,6 +1066,26 @@ void PS3EyeTracker::getCameraIntrinsics(
     float &outDistortionK1, float &outDistortionK2, float &outDistortionK3,
     float &outDistortionP1, float &outDistortionP2) const
 {
+    SERVER_LOG_INFO("PS3EyeTracker::getCameraIntrinsics")
+    << "cfg.focalLengthX=" << cfg.focalLengthX
+    << " cfg.focalLengthY=" << cfg.focalLengthY
+    << " cfg.principalX=" << cfg.principalX
+    << " cfg.principalY=" << cfg.principalY
+    << " cfg.distortionK1=" << cfg.distortionK1;
+
+    if (CaptureData == nullptr || CaptureData->frame.empty())
+    {
+        outFocalLengthX = 554.2563f;
+        outFocalLengthY = 554.2563f;
+        outPrincipalX = 320.0f;
+        outPrincipalY = 240.0f;
+        outDistortionK1 = -0.1077177f;
+        outDistortionK2 = 0.12132627f;
+        outDistortionK3 = 0.04875476f;
+        outDistortionP1 = 0.0009173307f;
+        outDistortionP2 = 0.0001058925f;
+        return;
+    }
 	// ###Externet $TODO Scale precomputed intrinsics if its other than 480p.
 	// 480p should be the default resolution for intrinsics.
 	const float NW = static_cast<float>(getFrameWidth() / 640);
@@ -789,12 +1126,21 @@ void PS3EyeTracker::setCameraIntrinsics(
 
 CommonDevicePose PS3EyeTracker::getTrackerPose() const
 {
+    //SERVER_LOG_INFO("PS3EyeTracker::getTrackerPose")
+    //<< "Returning pose: pos=("
+    //<< cfg.pose.PositionCm.x << "," << cfg.pose.PositionCm.y << "," << cfg.pose.PositionCm.z
+    //<< ") orient=(" << cfg.pose.Orientation.w << "," << cfg.pose.Orientation.x << ","
+    //<< cfg.pose.Orientation.y << "," << cfg.pose.Orientation.z << ")";
     return cfg.pose;
 }
 
-void PS3EyeTracker::setTrackerPose(
-    const struct CommonDevicePose *pose)
+void PS3EyeTracker::setTrackerPose(const struct CommonDevicePose *pose)
 {
+    SERVER_LOG_INFO("PS3EyeTracker::setTrackerPose")
+    //<< "Setting pose: pos=("
+    //<< pose->PositionCm.x << "," << pose->PositionCm.y << "," << pose->PositionCm.z
+    //<< ") orient=(" << pose->Orientation.w << "," << pose->Orientation.x << ","
+    //<< pose->Orientation.y << "," << pose->Orientation.z << ")";
     cfg.pose = *pose;
     cfg.save();
 }

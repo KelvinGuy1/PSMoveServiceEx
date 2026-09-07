@@ -301,7 +301,7 @@ public:
 
     bool areGridLinesStraight(const std::vector<cv::Point2f> &corners, const int tolerance)
     {
-        assert(corners.size() == CORNER_COUNT);
+        assert(corners.size() == getPatternCornerCount());
         bool bAllLinesStraight= true;
 
         for (int line_index= 0; bAllLinesStraight && line_index < m_pattern_h; ++line_index)

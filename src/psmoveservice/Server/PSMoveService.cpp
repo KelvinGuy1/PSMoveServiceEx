@@ -396,7 +396,7 @@ private:
 
 private:   
     // The io_service used to perform asynchronous operations.
-    boost::asio::io_service m_io_service;
+    boost::asio::io_context m_io_service;
        
     // The signal_set is used to register for process termination notifications.
     boost::asio::signal_set m_signals;

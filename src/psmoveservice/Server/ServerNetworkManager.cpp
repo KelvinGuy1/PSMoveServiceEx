@@ -98,7 +98,7 @@ public:
 
     static ClientConnectionPtr create(
         IServerNetworkEventListener* network_event_listener,
-        asio::io_service& io_service_ref,
+        asio::io_context& io_service_ref,
         udp::socket& udp_socket_ref, 
         ServerRequestHandler &request_handler_ref)
     {
@@ -334,7 +334,7 @@ private:
 
     ClientConnection(
         IServerNetworkEventListener *network_event_listener,
-        asio::io_service& io_service_ref,
+        asio::io_context& io_service_ref,
         udp::socket& udp_socket_ref , 
         ServerRequestHandler &request_handler_ref)
         : m_network_event_listener(network_event_listener)
@@ -431,7 +431,7 @@ private:
         // read into the body.
         //
         m_request_read_buffer.resize(HEADER_SIZE + msg_len);
-        asio::mutable_buffers_1 buf = asio::buffer(&m_request_read_buffer[HEADER_SIZE], msg_len);
+        auto buf = asio::buffer(&m_request_read_buffer[HEADER_SIZE], msg_len);
         asio::async_read(
             m_tcp_socket, buf,
             boost::bind(
@@ -548,7 +548,7 @@ int ClientConnection::next_connection_id = 0;
 class ServerNetworkManagerImpl : public IServerNetworkEventListener
 {
 public:
-    ServerNetworkManagerImpl(asio::io_service &io_service, NetworkManagerConfig &cfg, ServerRequestHandler &requestHandler)
+    ServerNetworkManagerImpl(asio::io_context &io_service, NetworkManagerConfig &cfg, ServerRequestHandler &requestHandler)
         : m_request_handler_ref(requestHandler)
         , m_io_service(io_service)
         , m_tcp_acceptor(m_io_service, tcp::endpoint(tcp::v4(), cfg.server_port))
@@ -583,7 +583,7 @@ public:
         ClientConnectionPtr new_connection = 
             ClientConnection::create(
                 this, 
-                m_tcp_acceptor.get_io_service(), 
+                m_io_service,
                 m_udp_socket, 
                 m_request_handler_ref);
 
@@ -751,7 +751,7 @@ private:
     ServerRequestHandler &m_request_handler_ref;
     
     // Core i/o functionality for TCP/UDP sockets
-    asio::io_service &m_io_service;
+    asio::io_context &m_io_service;
     
     // Handles waiting for and accepting new TCP connections
     tcp::acceptor m_tcp_acceptor;
@@ -990,7 +990,7 @@ ServerNetworkManager::~ServerNetworkManager()
 }
 
 bool ServerNetworkManager::startup(
-	boost::asio::io_service *io_service,
+	boost::asio::io_context *io_service,
     ServerRequestHandler *requestHandler)
 {    
     m_instance= this;

@@ -1259,7 +1259,18 @@ void AppStage_AdvancedSettings::renderUI()
 					{
 						if (AssetManager::ImGuiButtonIcon(AssetManager::getInstance()->getIconConnect(), "Open PSMoveServiceEx Config Directory"))
 						{
+							#ifdef _WIN32
 							configExec.OpenConfigInExplorer();
+							#else
+							{
+							    const char *homedir = getenv("HOME");
+							    if (geteuid() == 0) homedir = "/etc/psmoveservice";
+							    boost::filesystem::path configpath(homedir);
+							    configpath /= "PSMoveService";
+							    std::string cmd = "xdg-open \"" + configpath.string() + "\" &";
+							    system(cmd.c_str());
+							}
+							#endif
 						}
 					}
 					ImGui::EndGroup();

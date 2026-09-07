@@ -242,11 +242,11 @@ protected:
     inline TrackerColorPreset getColorPreset()
     { return m_colorPresets[m_masterTrackingColorType]; }
 
-	void AppStage_ColorCalibration::auto_adjust_color_sensitivity(TrackerColorPreset &preset, bool isPSmoveDevice);
+	void auto_adjust_color_sensitivity(TrackerColorPreset &preset, bool isPSmoveDevice);
 
-	void AppStage_ColorCalibration::get_contures_lower(int type, int min_points_in_contour, std::vector<std::vector<int>> &contures);
+	void get_contures_lower(int type, int min_points_in_contour, std::vector<std::vector<int>> &contures);
 
-	bool AppStage_ColorCalibration::is_tracker_virtual();
+	bool is_tracker_virtual();
 
 	bool get_average_color_point(float x, float y, int hue_range, int saturation_range, int value_range, PSMVector3f & color);
 

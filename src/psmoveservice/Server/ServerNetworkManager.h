@@ -10,7 +10,7 @@ class ServerRequestHandler;
 
 namespace boost {
     namespace asio {
-        class io_service;
+        class io_context;
     }
 }
 
@@ -49,7 +49,7 @@ public:
     /**
      Calls ServerNetworkManagerImpl::start_connection_accept()
      */
-    bool startup(boost::asio::io_service *io_service, ServerRequestHandler *request_handler);
+    bool startup(boost::asio::io_context *io_service, ServerRequestHandler *request_handler);
     
     /// Called last by PSMoveService::update()
     /**

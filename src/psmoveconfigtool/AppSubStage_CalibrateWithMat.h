@@ -41,7 +41,7 @@ public:
 	};
 	ePaperFormat m_iPaperFormat;
 
-	static const char *AppSubStage_CalibrateWithMat::k_paper_formats_names[AppSubStage_CalibrateWithMat::ePaperFormat::MAX_PAPER_FORMATS];
+	static const char *k_paper_formats_names[AppSubStage_CalibrateWithMat::ePaperFormat::MAX_PAPER_FORMATS];
 	 
     AppSubStage_CalibrateWithMat(class AppStage_ComputeTrackerPoses *parentStage);
 	virtual ~AppSubStage_CalibrateWithMat();

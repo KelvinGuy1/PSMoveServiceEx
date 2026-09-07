@@ -2231,7 +2231,7 @@ PSMResult PSM_GetHmdPhysicsData(PSMHmdID hmd_id, PSMPhysicsData *out_physics)
 PSMResult PSM_GetHmdMorpheusRawSensorData(PSMHmdID hmd_id, PSMMorpheusRawSensorData *out_data)
 {
 	PSMResult result = PSMResult_Error;
-	assert(out_physics);
+	assert(out_data);
 
 	if (g_psm_client != nullptr && IS_VALID_HMD_INDEX(hmd_id))
 	{

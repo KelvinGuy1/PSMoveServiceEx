@@ -102,27 +102,27 @@ public:
         int _width, _height;
         switch (property_id)
         {
-        case CV_CAP_PROP_BRIGHTNESS:
+        case cv::CAP_PROP_BRIGHTNESS:
             return (double)(CLEyeGetCameraParameter(m_eye, CLEYE_LENSBRIGHTNESS)); // [-500, 500]
-        case CV_CAP_PROP_CONTRAST:
+        case cv::CAP_PROP_CONTRAST:
             return false;
-        case CV_CAP_PROP_EXPOSURE:
+        case cv::CAP_PROP_EXPOSURE:
             // [0, 511] -> [0, 255]
             return double(CLEyeGetCameraParameter(m_eye, CLEYE_EXPOSURE))/2.0;
-        case CV_CAP_PROP_FPS:
+        case cv::CAP_PROP_FPS:
             return (double)(60);
-        case CV_CAP_PROP_FRAME_HEIGHT:
+        case cv::CAP_PROP_FRAME_HEIGHT:
             CLEyeCameraGetFrameDimensions(m_eye, _width, _height);
             return (double)(_height);
-        case CV_CAP_PROP_FRAME_WIDTH:
+        case cv::CAP_PROP_FRAME_WIDTH:
             CLEyeCameraGetFrameDimensions(m_eye, _width, _height);
             return (double)(_width);
-        case CV_CAP_PROP_GAIN:
+        case cv::CAP_PROP_GAIN:
             // [0, 79] -> [0, 255]
             return double(CLEyeGetCameraParameter(m_eye, CLEYE_GAIN)) * (256.0/80.0);
-        case CV_CAP_PROP_HUE:
+        case cv::CAP_PROP_HUE:
             return 0;
-        case CV_CAP_PROP_SHARPNESS:
+        case cv::CAP_PROP_SHARPNESS:
             return 0;
         }
         return 0;
@@ -137,12 +137,12 @@ public:
         }
         switch (property_id)
         {
-        case CV_CAP_PROP_BRIGHTNESS:
+        case cv::CAP_PROP_BRIGHTNESS:
             // [-500, 500]
             CLEyeSetCameraParameter(m_eye, CLEYE_LENSBRIGHTNESS, (int)value);
-        case CV_CAP_PROP_CONTRAST:
+        case cv::CAP_PROP_CONTRAST:
             return false;
-        case CV_CAP_PROP_EXPOSURE:
+        case cv::CAP_PROP_EXPOSURE:
             CLEyeSetCameraParameter(m_eye, CLEYE_AUTO_EXPOSURE, value <= 0);
             if (value > 0)
             {
@@ -150,13 +150,13 @@ public:
                 val = (int)(value * 2.0);
                 CLEyeSetCameraParameter(m_eye, CLEYE_EXPOSURE, val);
             }
-        case CV_CAP_PROP_FPS:
+        case cv::CAP_PROP_FPS:
             return false; //TODO: Modifying FPS probably requires resetting the camera
-        case CV_CAP_PROP_FRAME_HEIGHT:
+        case cv::CAP_PROP_FRAME_HEIGHT:
             return false; //TODO: Modifying frame size probably requires resetting the camera
-        case CV_CAP_PROP_FRAME_WIDTH:
+        case cv::CAP_PROP_FRAME_WIDTH:
             return false; //TODO: Modifying frame size probably requires resetting the camera
-        case CV_CAP_PROP_GAIN:
+        case cv::CAP_PROP_GAIN:
             CLEyeSetCameraParameter(m_eye, CLEYE_AUTO_GAIN, value <= 0);
             if (value > 0)
             {
@@ -164,9 +164,9 @@ public:
                 val = (int)ceil(value * 80.0 / 256.0);
                 CLEyeSetCameraParameter(m_eye, CLEYE_GAIN, val);
             }
-        case CV_CAP_PROP_HUE:
+        case cv::CAP_PROP_HUE:
             return false;
-        case CV_CAP_PROP_SHARPNESS:
+        case cv::CAP_PROP_SHARPNESS:
             return false; // TODO: Using OpenCV interface, sharpness appears to work
         }
         return true;
@@ -238,7 +238,8 @@ protected:
         if (_index < cams)
         {
 #ifdef SERVER_LOG_H
-			SERVER_LOG_INFO("PSEYECaptureCAM_CLMULTI::open()") << "Attempting to open camera " << _index << " of " << cams << "."";
+			SERVER_LOG_INFO("PSEYECaptureCAM_CLMULTI::open()")
+			<< "Attempting to open camera " << _index << " of " << cams << ".";
 #else
 			std::cout << "Attempting to open camera " << _index << " of " << cams << "." << std::endl;
 #endif
@@ -309,25 +310,25 @@ public:
     {
         switch (property_id)
         {
-        case CV_CAP_PROP_BRIGHTNESS:
+        case cv::CAP_PROP_BRIGHTNESS:
             return (double)(eye->getBrightness());
-        case CV_CAP_PROP_CONTRAST:
+        case cv::CAP_PROP_CONTRAST:
             return (double)(eye->getContrast());
-        case CV_CAP_PROP_EXPOSURE:
+        case cv::CAP_PROP_EXPOSURE:
             // Default 120
             return (double)(eye->getExposure());
-        case CV_CAP_PROP_FPS:
+        case cv::CAP_PROP_FPS:
             return (double)(eye->getFrameRate());
-        case CV_CAP_PROP_FRAME_HEIGHT:
+        case cv::CAP_PROP_FRAME_HEIGHT:
             return (double)(eye->getHeight());
-        case CV_CAP_PROP_FRAME_WIDTH:
+        case cv::CAP_PROP_FRAME_WIDTH:
             return (double)(eye->getWidth());
-        case CV_CAP_PROP_GAIN:
+        case cv::CAP_PROP_GAIN:
             // [0, 63] -> [0, 255]
             return (double)(eye->getGain())*256.0/64.0;
-        case CV_CAP_PROP_HUE:
+        case cv::CAP_PROP_HUE:
             return (double)(eye->getHue());
-        case CV_CAP_PROP_SHARPNESS:
+        case cv::CAP_PROP_SHARPNESS:
             // [0, 63] -> [0, 255]
             return (double)(eye->getSharpness())*256.0 / 64.0;
 		case CV_CAP_PROP_FRAMEAVAILABLE:
@@ -352,46 +353,46 @@ public:
 
         switch (property_id)
         {
-        case CV_CAP_PROP_BRIGHTNESS:
+        case cv::CAP_PROP_BRIGHTNESS:
             // [0, 255] [20]
             eye->setBrightness((int)round(value));
 			break;
-        case CV_CAP_PROP_CONTRAST:
+        case cv::CAP_PROP_CONTRAST:
             // [0, 255] [37]
             eye->setContrast((int)round(value));
 			break;
-        case CV_CAP_PROP_EXPOSURE:
+        case cv::CAP_PROP_EXPOSURE:
             // [0, 255] [120]
             eye->setExposure((int)round(value));
 			break;
-        case CV_CAP_PROP_FPS:
+        case cv::CAP_PROP_FPS:
 			// [15, 20, 30, 40 50, 60, 75]
 			eye->stop();
 			if (!eye->setFrameRate((int)round(value))) return false;
 			eye->start();
 			break;
-        case CV_CAP_PROP_FRAME_HEIGHT:
+        case cv::CAP_PROP_FRAME_HEIGHT:
 			eye->stop();
 			if (!eye->setHeight((int)round(value))) return false;
 			eye->start();
 			break;
             //return false; //TODO: Modifying frame size probably requires resetting the camera
-        case CV_CAP_PROP_FRAME_WIDTH:
+        case cv::CAP_PROP_FRAME_WIDTH:
 			eye->stop();
 			if (!eye->setWidth((int)round(value))) return false;
 			eye->start();
 			break;
             //return false;
-        case CV_CAP_PROP_GAIN:
+        case cv::CAP_PROP_GAIN:
             // [0, 255] -> [0, 63] [20]
             val = (int)(value * 64.0 / 256.0);
             eye->setGain(val);
 			break;
-        case CV_CAP_PROP_HUE:
+        case cv::CAP_PROP_HUE:
             // [0, 255] [143]
             eye->setHue((int)round(value));
 			break;
-        case CV_CAP_PROP_SHARPNESS:
+        case cv::CAP_PROP_SHARPNESS:
             // [0, 255] -> [0, 63] [0]
             val = (int)(value * 64.0 / 256.0);
             eye->setSharpness((int)round(value));
@@ -617,25 +618,25 @@ public:
 	{
 		switch (property_id)
 		{
-		case CV_CAP_PROP_BRIGHTNESS:
+		case cv::CAP_PROP_BRIGHTNESS:
 			return 0;
-		case CV_CAP_PROP_CONTRAST:
+		case cv::CAP_PROP_CONTRAST:
 			return 0;
-		case CV_CAP_PROP_EXPOSURE:
+		case cv::CAP_PROP_EXPOSURE:
 			return (double)m_exposure;
-		case CV_CAP_PROP_FPS:
+		case cv::CAP_PROP_FPS:
 			return 30;
-		case CV_CAP_PROP_FRAME_HEIGHT:
+		case cv::CAP_PROP_FRAME_HEIGHT:
 			return (double)m_frameHeight;
-		case CV_CAP_PROP_FRAME_WIDTH:
+		case cv::CAP_PROP_FRAME_WIDTH:
 			return (double)m_frameWidth;
-		case CV_CAP_PROP_GAIN:
+		case cv::CAP_PROP_GAIN:
 			return (double)m_gain;
-		case CV_CAP_PROP_HUE:
+		case cv::CAP_PROP_HUE:
 			return 0;
-		case CV_CAP_PROP_SHARPNESS:
+		case cv::CAP_PROP_SHARPNESS:
 			return 0;
-		case CV_CAP_PROP_FORMAT:
+		case cv::CAP_PROP_FORMAT:
 			return cv::CAP_MODE_RGB;
 		case CV_CAP_PROP_FRAMEAVAILABLE:
 			return (bool)m_frameAvailable;
@@ -648,13 +649,13 @@ public:
 	{
 		switch (property_id)
 		{
-		case CV_CAP_PROP_EXPOSURE:
+		case cv::CAP_PROP_EXPOSURE:
 			m_exposure = (int)round(value);
 			return true;
-		case CV_CAP_PROP_GAIN:
+		case cv::CAP_PROP_GAIN:
 			m_gain = (int)round(value);
 			return true;
-		case CV_CAP_PROP_FRAME_HEIGHT:
+		case cv::CAP_PROP_FRAME_HEIGHT:
 			m_frameHeight = (int)round(value);
 
 			if (m_frameHeight == 0 || m_frameHeight == 480)
@@ -671,7 +672,7 @@ public:
 			m_frameAvailable = false;
 			refreshPipe();
 			return true;
-		case CV_CAP_PROP_FRAME_WIDTH:
+		case cv::CAP_PROP_FRAME_WIDTH:
 			m_frameWidth = (int)round(value);
 
 			if (m_frameWidth == 0 || m_frameWidth == 640)
@@ -1272,32 +1273,45 @@ bool PSEyeVideoCapture::open(int index)
 		icap = pseyeVideoCapture_create(index);
 		if (!icap.empty() && icap->isOpened())
 		{
+			m_usingCustomCapture = true;
 			return true;
 		}
 
 		// Keep track of the camera index. Necessary for CLEyeDriver only.
 		// non -1 m_index is used as a CL Eye Driver check elsewhere.
-		if (usingCLEyeDriver())
-		{
-			m_api_index = index;
+#ifdef HAVE_CLEYE
+#ifdef WIN32
+if (usingCLEyeDriver())
+{
+        m_api_index = index;
 
 #ifdef SERVER_LOG_H
-			SERVER_LOG_INFO("PSEyeVideoCapture::open()") << "CL Eye Driver being used with native DShow. Setting m_index to " << m_api_index;
+        SERVER_LOG_INFO("PSEyeVideoCapture::open()")
+        << "CL Eye Driver being used with native DShow. Setting m_index to "
+        << m_api_index;
 #else
-			std::cout << "CL Eye Driver being used with native DShow. Setting m_index to " << m_api_index << std::endl;
+        std::cout
+        << "CL Eye Driver being used with native DShow. Setting m_index to "
+        << m_api_index << std::endl;
 #endif
 
-			if (!isOpened())
-			{
+        if (!isOpened())
+        {
 #ifdef SERVER_LOG_H
-				SERVER_LOG_INFO("PSEyeVideoCapture::open()") << "Attempting cv::VideoCapture::open(index) for CLEye DShow camera.";
+                SERVER_LOG_INFO("PSEyeVideoCapture::open()")
+                << "Attempting cv::VideoCapture::open(index) for CLEye DShow camera.";
 #else
-				std::cout << "Attempting cv::VideoCapture::open(index) for CLEye DShow camera." << std::endl;
+                std::cout
+                << "Attempting cv::VideoCapture::open(index) for CLEye DShow camera."
+                << std::endl;
 #endif
 
-				return cv::VideoCapture::open(index);
-			}
-		}
+                m_usingCustomCapture = true;
+                return cv::VideoCapture::open(index);
+        }
+}
+#endif
+#endif
 
 		// PS3EYE-specific camera capture if available, else use base class open()
 
@@ -1306,11 +1320,17 @@ bool PSEyeVideoCapture::open(int index)
 		// We don't officially support anything but the PS3Eye camera at the moment
 		// and it's currently confusing debugging other peoples camera issues with 
 		// this code path in place (random web cams getting opened)
-		//if (!isOpened())
-		//{
-		//    std::cout << "Attempting cv::VideoCapture::open(index)" << std::endl;
-		//    return cv::VideoCapture::open(index);
-		//}
+		// NOTE: This generic cv::VideoCapture fallback works for opening a UVC webcam,
+		// but PS3EyeTracker::poll() assumes PS3Eye-specific properties (CV_CAP_PROP_FRAMEAVAILABLE,
+		// CAP_OPENNI_BGR_IMAGE retrieval channel) that generic cameras don't support, so tracking
+		// never actually progresses past open(). Left disabled; see the dedicated Linux generic
+		// webcam tracker path instead.
+		if (!isOpened())
+		{
+		    std::cout << "Attempting cv::VideoCapture::open(index)" << std::endl;
+		    m_usingCustomCapture = false;
+		    return cv::VideoCapture::open(index);
+		}
 	}
 
 	if (m_iVideoCaptureType == eVideoCaptureType::CaptureType_VIRTUAL || m_iVideoCaptureType == eVideoCaptureType::CaptureType_ALL)
@@ -1322,6 +1342,7 @@ bool PSEyeVideoCapture::open(int index)
 
 		if (!icap.empty())
 		{
+			m_usingCustomCapture = true;
 			return true;
 		}
 
@@ -1352,14 +1373,14 @@ bool PSEyeVideoCapture::set(int propId, double value)
 
         switch (propId)
         {
-        case CV_CAP_PROP_EXPOSURE:
+        case cv::CAP_PROP_EXPOSURE:
             val = (value == 0);
             RegSetValueExA(hKey, "AutoAEC", 0, REG_DWORD, (CONST BYTE*)&val, l);
             val = (int)(value * 2) % 511;
             RegSetValueExA(hKey, "Exposure", 0, REG_DWORD, (CONST BYTE*)&val, l);
             param_set = true;
             break;
-        case CV_CAP_PROP_GAIN:
+        case cv::CAP_PROP_GAIN:
             val = (value == 0);
             RegSetValueExA(hKey, "AutoAGC", 0, REG_DWORD, (CONST BYTE*)&val, l);
             val = (int)ceil(value * 79/256) % 79;
@@ -1407,11 +1428,11 @@ double PSEyeVideoCapture::get(int propId) const
 
         switch (propId)
         {
-        case CV_CAP_PROP_EXPOSURE:
+        case cv::CAP_PROP_EXPOSURE:
             RegQueryValueExA(hKey, "AutoAEC", NULL, NULL, (LPBYTE)&resultA, &l);
             RegQueryValueExA(hKey, "Exposure", NULL, NULL, (LPBYTE)&resultB, &l);
             return (resultA == 1) ? 0 : ((double)(resultB))/2.0;
-        case CV_CAP_PROP_GAIN:
+        case cv::CAP_PROP_GAIN:
             RegQueryValueExA(hKey, "AutoAGC", NULL, NULL, (LPBYTE)&resultA, &l);
             RegQueryValueExA(hKey, "Gain", NULL, NULL, (LPBYTE)&resultB, &l);
             return (resultA == 1) ? 0 : ((double)(resultB))*(256.0/79.0);
@@ -1474,6 +1495,7 @@ cv::Ptr<cv::IVideoCapture> PSEyeVideoCapture::pseyeVideoCapture_create(int index
         switch (domains[i])
         {
 #ifdef HAVE_CLEYE
+#ifdef WIN32
             case PSEYE_CAP_CLMULTI:
                 {
                     capture = cv::makePtr<PSEYECaptureCAM_CLMULTI>(index);
@@ -1491,6 +1513,7 @@ cv::Ptr<cv::IVideoCapture> PSEyeVideoCapture::pseyeVideoCapture_create(int index
 					SERVER_LOG_INFO("PSEyeVideoCapture::pseyeVideoCapture_create()") << "CL Eye Driver detected.";
 #else
 					std::cout << "CL Eye Driver detected." << std::endl;
+#endif
 #endif
 
                     capture = cv::Ptr<cv::IVideoCapture>();
